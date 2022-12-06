@@ -118,7 +118,7 @@ addTransportationLayer<-function(stations_layer=NULL,
                                  e_attr_names=NULL,
                                  reprojection=NULL
                                  ){
-  show(paste0('Adding transportation network : stations = ',stations_layer,' ; links = ',link_layer))
+  #show(paste0('Adding transportation network : stations = ',stations_layer,' ; links = ',link_layer))
   
   # construct vertex set
   vertexes = data.frame()
