@@ -2,9 +2,6 @@
 ## TC Network transportation time estimation
 
 library(igraph)
-library(rgdal)
-library(rgeos)
-
 
 
 
@@ -18,15 +15,18 @@ addAdministrativeLayer<-function(g=empty_graph(0)$fun(0),
                                  ){
   if(is.character(admin_layer)){
     spath = strsplit(strsplit(admin_layer,'.shp')[[1]][1],'/')[[1]]
-    admin <- readOGR(paste(spath[1:(length(spath)-1)],collapse="/"),spath[length(spath)])
+    dsn = paste(spath[1:(length(spath)-1)],collapse="/")
+    name= spath[length(spath)]
+    admin <- st_read(dsn, name)
   }else{
     admin = admin_layer
   }
   
-  centroids = gCentroid(admin,byid = TRUE)
+  #centroids = gCentroid(admin,byid = TRUE)
+  centroids = st_centroid(admin)
   attrvals = list()
-  for(attr in names(attributes)){attrvals[[attr]]=as.character(admin@data[,attributes[[attr]]])}
-  return(addPoints(g,centroids@coords,attrvals,list(speed=rep(connect_speed,length(admin))),empty_graph_heuristic))
+  for(attr in names(attributes)){attrvals[[attr]]=as.character(admin[,attributes[[attr]]])}
+  return(addPoints(g,st_coordinates(centroids),attrvals,list(speed=rep(connect_speed,nrow(admin))),empty_graph_heuristic))
 }
 
 #testadmin = addAdministrativeLayer(trgraph,"data/gis/communes.shp")
@@ -118,7 +118,7 @@ addTransportationLayer<-function(stations_layer=NULL,
                                  e_attr_names=NULL,
                                  reprojection=NULL
                                  ){
-  show(paste0('Adding transportation network : stations = ',stations_layer,' ; links = ',link_layer))
+  #show(paste0('Adding transportation network : stations = ',stations_layer,' ; links = ',link_layer))
   
   # construct vertex set
   vertexes = data.frame()
@@ -131,16 +131,18 @@ addTransportationLayer<-function(stations_layer=NULL,
   if(!is.null(stations_layer)){
     if(is.character(stations_layer)){
       spath = strsplit(strsplit(stations_layer,'.shp')[[1]][1],'/')[[1]]
-      stations <- readOGR(paste(spath[1:(length(spath)-1)],collapse="/"),spath[length(spath)])
+      dsn = paste(spath[1:(length(spath)-1)],collapse="/")
+      name = spath[length(spath)]
+      stations <- st_read(dsn,name)
     }else{stations <- stations_layer}
     
     
     if(!is.null(reprojection)){
-      stations <- spTransform(stations, reprojection)
+      stations <- st_transform(stations, reprojection)
     }
     
     if(length(V(g))>0){
-      coords=stations@coords
+      coords=st_coordinates(stations)
       for(i in 1:length(stations)){
         statdist = apply(vertexes[,c("x","y")] - matrix(rep(coords[i,],nrow(vertexes)),ncol=2,byrow=TRUE),1,function(r){sqrt(r[1]^2+r[2]^2)})
         # create only if does not exist
@@ -160,11 +162,11 @@ addTransportationLayer<-function(stations_layer=NULL,
   # links
   if(is.character(link_layer)){
     lpath = strsplit(strsplit(link_layer,'.shp')[[1]][1],'/')[[1]]
-    links <- readOGR(paste(lpath[1:(length(lpath)-1)],collapse="/"),lpath[length(lpath)])
+    links <- st_read(paste(lpath[1:(length(lpath)-1)],collapse="/"),lpath[length(lpath)])
   }else{links <- link_layer}
   
   if(!is.null(reprojection)){
-    links <- spTransform(links, reprojection)
+    links <- st_transform(links, reprojection)
   }
   
   edges = data.frame()
@@ -179,21 +181,25 @@ addTransportationLayer<-function(stations_layer=NULL,
   edges$from=as.character(edges$from);edges$to=as.character(edges$to)
   
   # convert shitty factor types
-  for(j in 1:ncol(links@data)){links@data[,j]=as.numeric(as.character(links@data[,j]))}
+  for(j in names(st_drop_geometry(links))){links[,j]=as.numeric(sapply(st_drop_geometry(links[,j]),as.character))}
   
-  for(l in 1:length(links)){
+  for(l in 1:nrow(links)){
     #show(l)
     #currentAdditionalAttrs=as.numeric(as.character(links@data[l,e_attr_names]))
-    currentAdditionalAttrs=links@data[l,e_attr_names]
+    currentAdditionalAttrs=st_drop_geometry(links[l,e_attr_names])
     #show(currentAdditionalAttrs)
-    for(i in 1:length(links@lines[[l]]@Lines)){
-      coords = links@lines[[l]]@Lines[[i]]@coords
+    #for(i in 1:length(links@lines[[l]]@Lines)){
+    # simple linestring layer -> iteration not needed
+    
+      #coords = links@lines[[l]]@Lines[[i]]@coords
+      coords = st_coordinates(links$geometry[l])[,c("X","Y")]
       vids = c()
       #mincoords=apply(stations@coords,1,function(r){l=links@lines[[l]]@Lines[[i]]@coords;return(min(apply(abs(l-matrix(data=rep(r,nrow(l)),ncol=2,byrow = TRUE)),1,function(r){sqrt(r[1]^2+r[2]^2)})))})
       for(k in 1:nrow(coords)){
         if(nrow(vertexes)>0){
           statdist = apply(vertexes[,c("x","y")] - matrix(rep(coords[k,],nrow(vertexes)),ncol=2,byrow=TRUE),1,function(r){sqrt(r[1]^2+r[2]^2)})
         }else{statdist=c(2*snap)}
+        #show(statdist)
         if(statdist[statdist==min(statdist)]<snap){
           vids=append(vids,vertexes$id[statdist==min(statdist)])
           #show(paste0('existing : ',vids))
@@ -218,7 +224,7 @@ addTransportationLayer<-function(stations_layer=NULL,
         #show(addedge)
         edges=rbind(edges,addedge)
       }
-    }
+    #}
   }
   
   #show(edges)
