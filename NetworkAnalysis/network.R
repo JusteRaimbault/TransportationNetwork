@@ -106,7 +106,7 @@ addFootLinks<-function(g,walking_speed=1,snap=100){
 
 #'
 #' @name addTransportationLayer 
-#' @description Construct tarnsportation graph by adding layers successively
+#' @description Construct transportation graph by adding layers successively
 #' 
 #' @param 
 #' 
@@ -153,7 +153,12 @@ addTransportationLayer<-function(stations_layer=NULL,
         }
       }
     }else{
-      vertexes=rbind(vertexes,data.frame(id=(nrow(vertexes)+1):(nrow(vertexes)+length(stations)),x=stations@coords[,1],y=stations@coords[,2],station=rep(TRUE,length(stations))))
+      vertexes=rbind(vertexes,
+          data.frame(id=(nrow(vertexes)+1):(nrow(vertexes)+nrow(stations)),
+                     x=st_coordinates(stations)[,1],
+                     y=st_coordinates(stations)[,2],
+                     station=rep(TRUE,nrow(stations)))
+          )
       vertexes$id=as.numeric(as.character(vertexes$id))
     }
   }
@@ -237,6 +242,7 @@ addTransportationLayer<-function(stations_layer=NULL,
   
   g = induced_subgraph(res,which(degree(res)>0))
   
+  # all stations by default if no station layer is provided
   if(is.null(stations_layer)){
      V(g)$station = rep(TRUE,vcount(g))
   }
